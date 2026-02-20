@@ -3,14 +3,12 @@ db.sqlite3
 media/
 staticfiles/
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
 venv/
 .env
 *.env
 dist/
 build/
 .vscode/
-*.gitignore
 .gitignore
+*.gitignore
+**.gitignore
