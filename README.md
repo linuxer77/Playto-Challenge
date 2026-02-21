@@ -1,1 +1,0 @@
-# playto-challenge
