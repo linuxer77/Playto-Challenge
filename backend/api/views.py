@@ -3,10 +3,12 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from django.core import signing
 from django.conf import settings
-from django.db.models import Count, IntegerField, Value
+from django.db.models import Count, IntegerField, Value, Max, Q, OuterRef, Subquery
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import F
+from django.db import IntegrityError, transaction
+from django.db.models.functions import Coalesce
 from core.models import User, Post, PostLike, Comment, CommentLike
 from .serializers import (
     UserSerializer,
@@ -183,8 +185,20 @@ def createPostLike(request):
 
     serializer = PostLikeSerializer(data=data)
     if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        post = serializer.validated_data["post"]
+
+        try:
+            with transaction.atomic():
+                like, created = PostLike.objects.get_or_create(user=auth_user, post=post)
+        except IntegrityError:
+            like = PostLike.objects.get(user=auth_user, post=post)
+            created = False
+
+        response_serializer = PostLikeSerializer(like)
+        return Response(
+            response_serializer.data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -240,11 +254,36 @@ def listPostComments(request, post_id):
     if auth_error:
         return auth_error
 
-    comments = Comment.objects.filter(post_id=post_id, parent__isnull=True).order_by(
-        "-created"
+    comments = list(
+        Comment.objects.filter(post_id=post_id)
+        .select_related("author")
+        .annotate(
+            comment_like_count=Count("commentlike", distinct=True),
+            viewer_comment_like_id=Max(
+                "commentlike__id",
+                filter=Q(commentlike__user_id=auth_user.id),
+            ),
+        )
+        .order_by("-created")
     )
+
+    comments_by_id = {comment.id: comment for comment in comments}
+    root_comments = []
+
+    for comment in comments:
+        comment.prefetched_replies = []
+
+    for comment in comments:
+        if comment.parent_id is None:
+            root_comments.append(comment)
+            continue
+
+        parent_comment = comments_by_id.get(comment.parent_id)
+        if parent_comment is not None:
+            parent_comment.prefetched_replies.append(comment)
+
     serializer = CommentReadSerializer(
-        comments,
+        root_comments,
         many=True,
         context={"auth_user": auth_user},
     )
@@ -262,8 +301,23 @@ def createCommentLike(request):
 
     serializer = CommentLikeSerializer(data=data)
     if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        comment = serializer.validated_data["comment"]
+
+        try:
+            with transaction.atomic():
+                like, created = CommentLike.objects.get_or_create(
+                    user=auth_user,
+                    comment=comment,
+                )
+        except IntegrityError:
+            like = CommentLike.objects.get(user=auth_user, comment=comment)
+            created = False
+
+        response_serializer = CommentLikeSerializer(like)
+        return Response(
+            response_serializer.data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -300,61 +354,62 @@ def getKarmaLeaderboard24h(request):
 
     window_start = timezone.now() - timedelta(hours=24)
 
-    post_karma_rows = (
-        PostLike.objects.filter(created__gte=window_start)
-        .exclude(user_id=F("post__author_id"))
-        .values("post__author_id", "post__author__username")
-        .annotate(
-            karma=Count("id")
-            * Value(
-                5,
-                output_field=IntegerField(),
-            )
+    post_karma_subquery = (
+        PostLike.objects.filter(
+            post__author_id=OuterRef("pk"),
+            created__gte=window_start,
         )
+        .exclude(user_id=OuterRef("pk"))
+        .values("post__author_id")
+        .annotate(
+            total=Count("id") * Value(5, output_field=IntegerField()),
+        )
+        .values("total")[:1]
     )
 
-    comment_karma_rows = (
-        CommentLike.objects.filter(created__gte=window_start)
-        .exclude(user_id=F("comment__author_id"))
-        .values("comment__author_id", "comment__author__username")
-        .annotate(
-            karma=Count("id")
-            * Value(
-                1,
-                output_field=IntegerField(),
-            )
+    comment_karma_subquery = (
+        CommentLike.objects.filter(
+            comment__author_id=OuterRef("pk"),
+            created__gte=window_start,
         )
+        .exclude(user_id=OuterRef("pk"))
+        .values("comment__author_id")
+        .annotate(
+            total=Count("id") * Value(1, output_field=IntegerField()),
+        )
+        .values("total")[:1]
     )
 
-    leaderboard_totals = {}
+    top_users = list(
+        User.objects.annotate(
+            post_karma=Coalesce(
+                Subquery(post_karma_subquery, output_field=IntegerField()),
+                Value(0),
+            ),
+            comment_karma=Coalesce(
+                Subquery(comment_karma_subquery, output_field=IntegerField()),
+                Value(0),
+            ),
+        )
+        .annotate(karma=F("post_karma") + F("comment_karma"))
+        .filter(karma__gt=0)
+        .order_by("-karma", "username")
+        .values("id", "username", "karma")[:5]
+    )
 
-    for row in post_karma_rows:
-        user_id = row["post__author_id"]
-        leaderboard_totals[user_id] = {
-            "user_id": user_id,
-            "username": row["post__author__username"],
+    leaderboard_rows = [
+        {
+            "user_id": row["id"],
+            "username": row["username"],
             "karma": row["karma"],
         }
-
-    for row in comment_karma_rows:
-        user_id = row["comment__author_id"]
-        if user_id not in leaderboard_totals:
-            leaderboard_totals[user_id] = {
-                "user_id": user_id,
-                "username": row["comment__author__username"],
-                "karma": 0,
-            }
-        leaderboard_totals[user_id]["karma"] += row["karma"]
-
-    top_users = sorted(
-        leaderboard_totals.values(),
-        key=lambda user_entry: (-user_entry["karma"], user_entry["username"]),
-    )[:5]
+        for row in top_users
+    ]
 
     return Response(
         {
             "window_hours": 24,
-            "top_users": top_users,
+            "top_users": leaderboard_rows,
         },
         status=status.HTTP_200_OK,
     )

@@ -69,15 +69,7 @@ class PostLikeSerializer(serializers.ModelSerializer):
         model = PostLike
         fields = ["id", "user", "post", "created"]
         read_only_fields = ["id", "created"]
-
-    def validate(self, attrs):
-        user = attrs.get("user")
-        post = attrs.get("post")
-
-        if user and post and PostLike.objects.filter(user=user, post=post).exists():
-            raise serializers.ValidationError("You have already liked this post.")
-
-        return attrs
+        validators = []
 
 
 class CommentCreateSerializer(serializers.ModelSerializer):
@@ -119,19 +111,32 @@ class CommentReadSerializer(serializers.ModelSerializer):
         ]
 
     def get_replies(self, obj):
+        prefetched_replies = getattr(obj, "prefetched_replies", None)
+        if prefetched_replies is not None:
+            replies = prefetched_replies
+        else:
+            replies = obj.replies.all()
+
         return CommentReadSerializer(
-            obj.replies.all(),
+            replies,
             many=True,
             context=self.context,
         ).data
 
     def get_comment_like_count(self, obj):
+        annotated_count = getattr(obj, "comment_like_count", None)
+        if annotated_count is not None:
+            return annotated_count
         return obj.commentlike_set.count()
 
     def get_viewer_comment_like_id(self, obj):
         auth_user = self.context.get("auth_user")
         if not auth_user:
             return None
+
+        annotated_like_id = getattr(obj, "viewer_comment_like_id", None)
+        if annotated_like_id is not None:
+            return annotated_like_id
 
         like = CommentLike.objects.filter(user=auth_user, comment=obj).first()
         return like.id if like else None
@@ -145,16 +150,4 @@ class CommentLikeSerializer(serializers.ModelSerializer):
         model = CommentLike
         fields = ["id", "user", "comment", "created"]
         read_only_fields = ["id", "created"]
-
-    def validate(self, attrs):
-        user = attrs.get("user")
-        comment = attrs.get("comment")
-
-        if (
-            user
-            and comment
-            and CommentLike.objects.filter(user=user, comment=comment).exists()
-        ):
-            raise serializers.ValidationError("You have already liked this comment.")
-
-        return attrs
+        validators = []
