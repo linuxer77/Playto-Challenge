@@ -1,21 +1,20 @@
 import { cva } from "class-variance-authority";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { cn } from "../lib/utils";
-import { feedPosts } from "./feedData";
+import { postsApi } from "../api";
 import { PostCard } from "./PostCard";
 import { Composer } from "./Composer";
 
 const containerClass = cva(
-  "h-screen overflow-y-auto border-x border-white/10 bg-[#050A12]/40",
+  "h-full min-h-[calc(100vh-4.2rem)] overflow-y-auto border-x border-[var(--tokyo-muted)] bg-[var(--tokyo-void)]",
 );
 const tabButtonClass = cva(
-  "relative flex-1 py-4 text-[15px] font-semibold transition-colors hover:bg-white/5",
+  "terminal-action relative flex-1 border-b border-[var(--tokyo-muted)] px-5 py-3 text-left text-sm font-semibold tracking-[0.08em]",
   {
     variants: {
       active: {
-        true: "text-white",
-        false: "text-[#71767B]",
+        true: "text-[var(--tokyo-prompt)]",
+        false: "text-[var(--tokyo-muted)]",
       },
     },
     defaultVariants: {
@@ -25,55 +24,52 @@ const tabButtonClass = cva(
 );
 
 export function Feed({ postId }) {
-  const [activeTab, setActiveTab] = useState("for-you");
+  const [posts, setPosts] = useState([]);
+  const [currentPost, setCurrentPost] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
-
-  useEffect(() => {
-    console.info("Initializing nested layout engine for thread depth...");
-  }, []);
-
-  const visiblePosts = useMemo(() => {
-    if (activeTab === "following") {
-      return feedPosts.filter(
-        (post) =>
-          post.author.handle === "arikim" || post.author.handle === "sofiaw",
-      );
-    }
-    return feedPosts;
-  }, [activeTab]);
-
-  const selectedPost = useMemo(
-    () => feedPosts.find((post) => post.id === postId) ?? null,
-    [postId],
-  );
-
   const isDetailView = Boolean(postId);
 
-  const postsToRender = useMemo(() => {
-    if (isDetailView) {
-      return selectedPost ? [selectedPost] : [];
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      if (isDetailView) {
+        const payload = await postsApi.get(postId);
+        setCurrentPost(payload);
+      } else {
+        const payload = await postsApi.list();
+        setPosts(payload);
+      }
+    } catch (err) {
+      setError(err.message || "Failed to load posts.");
+    } finally {
+      setLoading(false);
     }
-    return visiblePosts;
-  }, [isDetailView, selectedPost, visiblePosts]);
+  }, [isDetailView, postId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   return (
     <main className={containerClass()}>
-      <div className="sticky top-0 z-10 border-b border-white/10 bg-[#050A12]/90 backdrop-blur-xl">
+      <div className="terminal-chrome sticky top-0 z-10 border-b border-[var(--tokyo-muted)] bg-[var(--tokyo-void)]">
         {isDetailView ? (
-          <div className="flex items-center gap-3 px-4 py-3">
+          <div className="flex items-center gap-3 px-5 py-3">
             <button
               type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10"
+              className="terminal-btn terminal-action inline-flex h-8 w-8 items-center justify-center text-[var(--tokyo-prompt)]"
               onClick={() => navigate("/home")}
               aria-label="Back to feed"
             >
               ←
             </button>
             <div>
-              <p className="text-xl font-bold text-white">Post</p>
-              {selectedPost && (
-                <p className="text-xs text-[#71767B]">@{selectedPost.author.handle}</p>
-              )}
+              <p className="terminal-prompt text-sm font-semibold tracking-[0.08em] text-[var(--tokyo-prompt)]">
+                <span className="terminal-token-flag">read_post</span>
+              </p>
             </div>
           </div>
         ) : (
@@ -81,52 +77,58 @@ export function Feed({ postId }) {
             <div className="flex">
               <button
                 type="button"
-                className={tabButtonClass({ active: activeTab === "for-you" })}
-                onClick={() => setActiveTab("for-you")}
+                className={tabButtonClass({ active: true })}
               >
-                For you
-                <span
-                  className={cn(
-                    "absolute bottom-0 left-1/2 h-1 w-14 -translate-x-1/2 rounded-full bg-[#1D9BF0] transition-opacity",
-                    activeTab === "for-you" ? "opacity-100" : "opacity-0",
-                  )}
-                />
-              </button>
-              <button
-                type="button"
-                className={tabButtonClass({ active: activeTab === "following" })}
-                onClick={() => setActiveTab("following")}
-              >
-                Following
-                <span
-                  className={cn(
-                    "absolute bottom-0 left-1/2 h-1 w-14 -translate-x-1/2 rounded-full bg-[#1D9BF0] transition-opacity",
-                    activeTab === "following" ? "opacity-100" : "opacity-0",
-                  )}
-                />
+                <span className="terminal-token-key">root</span>
+                <span className="text-[var(--tokyo-muted)]">@</span>
+                <span className="terminal-token-meta">feed</span>
+                <span className="text-[var(--tokyo-muted)]">:~$ </span>
+                <span className="terminal-token-flag">ls</span>
+                <span className="text-[var(--tokyo-muted)]"> </span>
+                <span className="terminal-token-meta">posts</span>
               </button>
             </div>
-            <Composer />
+            <Composer onPostCreated={loadData} />
           </>
         )}
       </div>
 
-      <div>
-        {postsToRender.map((post) => (
-          <PostCard key={post.id} post={post} expanded={isDetailView} />
-        ))}
-        {isDetailView && !selectedPost && (
-          <div className="px-4 py-10 text-center">
-            <p className="text-lg font-semibold text-white">Post not found</p>
+      <div className="px-2 pb-16 pt-2">
+        {loading && (
+          <p className="px-4 py-8 text-sm text-[var(--tokyo-muted)]">
+            loading...
+          </p>
+        )}
+
+        {!loading && error && (
+          <div className="px-4 py-8">
+            <p className="text-sm text-[var(--tokyo-alert)]">error: {error}</p>
             <button
               type="button"
-              className="mt-3 rounded-full bg-[#1D9BF0] px-4 py-2 text-sm font-bold text-white"
-              onClick={() => navigate("/home")}
+              onClick={loadData}
+              className="terminal-btn terminal-action mt-3 px-3 py-1 text-sm"
             >
-              Go back to feed
+              {"> retry()"}
             </button>
           </div>
         )}
+
+        {!loading && !error && isDetailView && currentPost && (
+          <PostCard key={currentPost.id} post={currentPost} expanded />
+        )}
+
+        {!loading && !error && !isDetailView && posts.length === 0 && (
+          <p className="px-4 py-8 text-sm text-[var(--tokyo-muted)]">
+            no posts found
+          </p>
+        )}
+
+        {!loading &&
+          !error &&
+          !isDetailView &&
+          posts.map((post) => (
+            <PostCard key={post.id} post={post} expanded={false} />
+          ))}
       </div>
     </main>
   );

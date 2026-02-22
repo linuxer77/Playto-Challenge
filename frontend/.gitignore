@@ -7,6 +7,8 @@ coverage
 .env.development
 .env.production
 .env.local
+.env.staging
+.env.qa
 .env.development.local
 .env.test.local
 .env.production.local
@@ -25,3 +27,5 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+RUN_AGAINST_BACKEND.md
