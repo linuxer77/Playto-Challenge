@@ -1,5 +1,6 @@
 import { cva } from "class-variance-authority";
 import { House, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { cn } from "../lib/utils";
 
 const railClass = cva(
@@ -11,16 +12,23 @@ const iconButtonClass = cva(
 );
 
 export function LeftSidebar({ onSignOut }) {
+  const navigate = useNavigate();
+
   return (
     <aside className={railClass()}>
       <div className={navClass()}>
-        <div className="mb-3 text-base font-semibold tracking-[0.14em] text-[var(--tokyo-prompt)]">
-          PT
+        <div className="mb-3 flex h-11 w-11 items-center justify-center overflow-hidden rounded-sm border border-[var(--tokyo-muted)] bg-[var(--tokyo-surface)]">
+          <img
+            src="/favicon.ico"
+            alt="Playto logo"
+            className="h-7 w-7 object-contain"
+          />
         </div>
         <button
           type="button"
           className={cn(iconButtonClass(), "text-[var(--tokyo-prompt)]")}
           aria-label="Home"
+          onClick={() => navigate("/home")}
         >
           <House size={20} strokeWidth={2} />
         </button>

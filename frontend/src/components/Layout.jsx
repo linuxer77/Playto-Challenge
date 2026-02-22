@@ -27,7 +27,12 @@ export function Layout() {
     <div className="min-h-screen bg-[var(--tokyo-void)] px-3 py-3 text-[var(--tokyo-text)] sm:px-4">
       <div className="terminal-shell mx-auto min-h-[calc(100vh-1.5rem)] max-w-[1320px]">
         <div className="terminal-chrome flex items-center justify-between px-4 py-2 text-xs">
-          <span className="tracking-[0.12em]">
+          <span className="flex items-center gap-2 tracking-[0.12em]">
+            <img
+              src="/favicon.ico"
+              alt="Playto logo"
+              className="h-4 w-4 object-contain"
+            />
             <span className="terminal-token-command">PLAYTO</span>
             <span className="terminal-token-meta">://</span>
             <span className="terminal-token-key">SESSION</span>

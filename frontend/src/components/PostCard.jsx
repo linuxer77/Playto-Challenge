@@ -147,11 +147,6 @@ export function PostCard({ post, expanded = false }) {
                 : `[LIKE: ${postLikeCount}]`}
             </span>
           </button>
-
-          <span className="text-xs text-[var(--tokyo-muted)]">
-            <span className="terminal-token-key">total_likes</span>=
-            <span className="terminal-token-number">{totalLikeCount}</span>
-          </span>
         </div>
 
         {likeError && (

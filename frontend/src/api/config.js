@@ -1,8 +1,15 @@
-// Always use relative API URLs in development so Vite proxy handles /api requests
-// and avoids browser CORS/preflight issues.
-export const API_BASE_URL = import.meta.env.DEV
-  ? ""
-  : import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const rawApiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "").trim();
+
+if (import.meta.env.PROD && !rawApiBaseUrl) {
+  throw new Error(
+    "Missing VITE_API_BASE_URL. Set it in your deployment environment (for example, Vercel).",
+  );
+}
+
+export const API_BASE_URL = (rawApiBaseUrl || "http://localhost:8000").replace(
+  /\/+$/,
+  "",
+);
 
 export const API_PATHS = {
   users: {
