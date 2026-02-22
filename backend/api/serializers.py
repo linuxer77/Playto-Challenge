@@ -19,10 +19,49 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class PostSerializer(serializers.ModelSerializer):
+    author_username = serializers.SlugRelatedField(read_only=True, slug_field="username", source="author")
+    post_like_count = serializers.SerializerMethodField()
+    thread_like_count = serializers.SerializerMethodField()
+    total_like_count = serializers.SerializerMethodField()
+    viewer_post_like_id = serializers.SerializerMethodField()
+    is_liked_by_viewer = serializers.SerializerMethodField()
+
     class Meta:
         model = Post
-        fields = ["id", "author", "title", "content", "date"]
+        fields = [
+            "id",
+            "author",
+            "author_username",
+            "title",
+            "content",
+            "date",
+            "post_like_count",
+            "thread_like_count",
+            "total_like_count",
+            "viewer_post_like_id",
+            "is_liked_by_viewer",
+        ]
         read_only_fields = ["id", "date"]
+
+    def get_post_like_count(self, obj):
+        return obj.postlike_set.count()
+
+    def get_thread_like_count(self, obj):
+        return CommentLike.objects.filter(comment__post=obj).count()
+
+    def get_total_like_count(self, obj):
+        return self.get_post_like_count(obj) + self.get_thread_like_count(obj)
+
+    def get_viewer_post_like_id(self, obj):
+        auth_user = self.context.get("auth_user")
+        if not auth_user:
+            return None
+
+        like = PostLike.objects.filter(user=auth_user, post=obj).first()
+        return like.id if like else None
+
+    def get_is_liked_by_viewer(self, obj):
+        return bool(self.get_viewer_post_like_id(obj))
 
 
 class PostLikeSerializer(serializers.ModelSerializer):
@@ -30,15 +69,7 @@ class PostLikeSerializer(serializers.ModelSerializer):
         model = PostLike
         fields = ["id", "user", "post", "created"]
         read_only_fields = ["id", "created"]
-
-    def validate(self, attrs):
-        user = attrs.get("user")
-        post = attrs.get("post")
-
-        if user and post and PostLike.objects.filter(user=user, post=post).exists():
-            raise serializers.ValidationError("You have already liked this post.")
-
-        return attrs
+        validators = []
 
 
 class CommentCreateSerializer(serializers.ModelSerializer):
@@ -62,17 +93,56 @@ class CommentCreateSerializer(serializers.ModelSerializer):
 class CommentReadSerializer(serializers.ModelSerializer):
     author = serializers.SlugRelatedField(read_only=True, slug_field="username")
     replies = serializers.SerializerMethodField()
+    comment_like_count = serializers.SerializerMethodField()
+    viewer_comment_like_id = serializers.SerializerMethodField()
+    is_liked_by_viewer = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment
-        fields = ["id", "author", "content", "created", "replies"]
+        fields = [
+            "id",
+            "author",
+            "content",
+            "created",
+            "comment_like_count",
+            "viewer_comment_like_id",
+            "is_liked_by_viewer",
+            "replies",
+        ]
 
     def get_replies(self, obj):
+        prefetched_replies = getattr(obj, "prefetched_replies", None)
+        if prefetched_replies is not None:
+            replies = prefetched_replies
+        else:
+            replies = obj.replies.all()
+
         return CommentReadSerializer(
-            obj.replies.all(),
+            replies,
             many=True,
             context=self.context,
         ).data
+
+    def get_comment_like_count(self, obj):
+        annotated_count = getattr(obj, "comment_like_count", None)
+        if annotated_count is not None:
+            return annotated_count
+        return obj.commentlike_set.count()
+
+    def get_viewer_comment_like_id(self, obj):
+        auth_user = self.context.get("auth_user")
+        if not auth_user:
+            return None
+
+        annotated_like_id = getattr(obj, "viewer_comment_like_id", None)
+        if annotated_like_id is not None:
+            return annotated_like_id
+
+        like = CommentLike.objects.filter(user=auth_user, comment=obj).first()
+        return like.id if like else None
+
+    def get_is_liked_by_viewer(self, obj):
+        return bool(self.get_viewer_comment_like_id(obj))
 
 
 class CommentLikeSerializer(serializers.ModelSerializer):
@@ -80,16 +150,4 @@ class CommentLikeSerializer(serializers.ModelSerializer):
         model = CommentLike
         fields = ["id", "user", "comment", "created"]
         read_only_fields = ["id", "created"]
-
-    def validate(self, attrs):
-        user = attrs.get("user")
-        comment = attrs.get("comment")
-
-        if (
-            user
-            and comment
-            and CommentLike.objects.filter(user=user, comment=comment).exists()
-        ):
-            raise serializers.ValidationError("You have already liked this comment.")
-
-        return attrs
+        validators = []
