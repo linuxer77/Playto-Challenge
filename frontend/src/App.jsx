@@ -1,61 +1,25 @@
-import { useMemo, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { useAuth } from "./auth/AuthContext";
+import { RequireAuth } from "./auth/RequireAuth";
 import { AuthPage } from "./components/AuthPage";
 import { Layout } from "./components/Layout";
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    () => window.localStorage.getItem("playto.auth") === "1",
-  );
-
-  const authActions = useMemo(
-    () => ({
-      signIn: () => {
-        window.localStorage.setItem("playto.auth", "1");
-        setIsAuthenticated(true);
-      },
-      signOut: () => {
-        window.localStorage.removeItem("playto.auth");
-        setIsAuthenticated(false);
-      },
-    }),
-    [],
-  );
+  const { isAuthenticated } = useAuth();
 
   return (
     <Routes>
       <Route
         path="/"
         element={
-          isAuthenticated ? (
-            <Navigate to="/home" replace />
-          ) : (
-            <AuthPage onAuthenticate={authActions.signIn} />
-          )
+          isAuthenticated ? <Navigate to="/home" replace /> : <AuthPage />
         }
       />
 
-      <Route
-        path="/home"
-        element={
-          isAuthenticated ? (
-            <Layout onSignOut={authActions.signOut} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
-
-      <Route
-        path="/:postId"
-        element={
-          isAuthenticated ? (
-            <Layout onSignOut={authActions.signOut} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
+      <Route element={<RequireAuth />}>
+        <Route path="/home" element={<Layout />} />
+        <Route path="/posts/:postId" element={<Layout />} />
+      </Route>
 
       <Route
         path="*"

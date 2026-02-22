@@ -1,41 +1,59 @@
 import { cva } from "class-variance-authority";
 import { MessageCircle, Heart } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { cn } from "../lib/utils";
+import { commentsApi, likesApi } from "../api";
 
 const nodeClass = cva("relative");
 const actionButtonClass = cva(
   "group inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs text-[#71767B] transition-colors hover:bg-white/10 hover:text-white",
 );
 
-export function CommentThread({ comment, depth }) {
+function CommentNode({ node, depth, postId, onRefresh }) {
   const [liked, setLiked] = useState(false);
-  const [open, setOpen] = useState(false);
-  const [children, setChildren] = useState(comment.children);
+  const [likeId, setLikeId] = useState(null);
+  const [open, setOpen] = useState(true);
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
-  const hasChildren = children.length > 0;
-  const childCount = children.length;
+  const [error, setError] = useState("");
+  const hasChildren = node.replies.length > 0;
+  const childCount = node.replies.length;
 
-  const submitReply = () => {
+  const submitReply = async () => {
     const value = replyText.trim();
-    if (!value) {
-      return;
-    }
+    if (!value) return;
+    setError("");
 
-    setChildren((current) => [
-      ...current,
-      {
-        id: `c-${comment.id}-${Date.now()}`,
-        author: { name: "You", handle: "you", avatar: "YOU" },
-        timestamp: "now",
-        text: value,
-        children: [],
-      },
-    ]);
-    setReplyText("");
-    setReplyOpen(false);
-    setOpen(true);
+    try {
+      await commentsApi.create({
+        post: postId,
+        parent: node.id,
+        content: value,
+      });
+      setReplyText("");
+      setReplyOpen(false);
+      setOpen(true);
+      await onRefresh();
+    } catch (err) {
+      setError(err.message || "Unable to add reply.");
+    }
+  };
+
+  const toggleLike = async () => {
+    setError("");
+    try {
+      if (liked && likeId) {
+        await likesApi.deleteCommentLike(likeId);
+        setLiked(false);
+        setLikeId(null);
+      } else {
+        const payload = await likesApi.createCommentLike(node.id);
+        setLiked(true);
+        setLikeId(payload.id);
+      }
+    } catch (err) {
+      setError(err.message || "Unable to update comment like.");
+    }
   };
 
   return (
@@ -43,18 +61,17 @@ export function CommentThread({ comment, depth }) {
       <div className={cn(depth > 0 && "border-l border-[#2F3336] pl-3")}>
         <div className="flex gap-2.5">
           <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-[10px] font-semibold text-white">
-            {comment.author.avatar}
+            {node.author.slice(0, 2).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-1 text-sm leading-5">
-              <span className="font-bold text-white">
-                {comment.author.name}
-              </span>
-              <span className="text-[#71767B]">@{comment.author.handle}</span>
+              <span className="font-bold text-white">@{node.author}</span>
               <span className="text-[#71767B]">·</span>
-              <span className="text-[#71767B]">{comment.timestamp}</span>
+              <span className="text-[#71767B]">
+                {new Date(node.created).toLocaleString()}
+              </span>
             </div>
-            <p className="text-sm font-medium text-white">{comment.text}</p>
+            <p className="text-sm font-medium text-white">{node.content}</p>
             <div className="mt-1.5 flex items-center gap-1">
               <button
                 type="button"
@@ -75,12 +92,12 @@ export function CommentThread({ comment, depth }) {
                 )}
                 onClick={(event) => {
                   event.stopPropagation();
-                  setLiked((value) => !value);
+                  toggleLike();
                 }}
                 aria-pressed={liked}
               >
                 <Heart size={14} fill={liked ? "#F91880" : "transparent"} />
-                <span>Like</span>
+                <span>{liked ? "Liked" : "Like"}</span>
               </button>
               {hasChildren && (
                 <button
@@ -134,6 +151,7 @@ export function CommentThread({ comment, depth }) {
                 </div>
               </div>
             )}
+            {error && <p className="mt-1 text-xs text-red-300">{error}</p>}
           </div>
         </div>
       </div>
@@ -148,12 +166,100 @@ export function CommentThread({ comment, depth }) {
           )}
         >
           <div className="min-h-0 space-y-2">
-            {children.map((child) => (
-              <CommentThread key={child.id} comment={child} depth={depth + 1} />
+            {node.replies.map((child) => (
+              <CommentNode
+                key={child.id}
+                node={child}
+                depth={depth + 1}
+                postId={postId}
+                onRefresh={onRefresh}
+              />
             ))}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+export function CommentThread({ postId }) {
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadComments = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const payload = await commentsApi.listByPost(postId);
+      setComments(payload);
+    } catch (err) {
+      setError(err.message || "Failed to load comments.");
+    } finally {
+      setLoading(false);
+    }
+  }, [postId]);
+
+  useEffect(() => {
+    loadComments();
+  }, [loadComments]);
+
+  const submitRootComment = async () => {
+    const content = newComment.trim();
+    if (!content) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await commentsApi.create({ post: postId, content });
+      setNewComment("");
+      await loadComments();
+    } catch (err) {
+      setError(err.message || "Unable to add comment.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="rounded-2xl border border-[#2F3336] p-3">
+        <textarea
+          value={newComment}
+          onChange={(event) => setNewComment(event.target.value)}
+          className="min-h-[76px] w-full resize-none bg-transparent text-sm text-white outline-none placeholder:text-[#71767B]"
+          placeholder="Write a comment"
+        />
+        <div className="mt-2 flex justify-end">
+          <button
+            type="button"
+            className="rounded-full bg-[#1D9BF0] px-3 py-1 text-xs font-bold text-white disabled:opacity-50"
+            onClick={submitRootComment}
+            disabled={!newComment.trim() || submitting}
+          >
+            {submitting ? "Posting..." : "Comment"}
+          </button>
+        </div>
+      </div>
+
+      {loading && <p className="text-xs text-zinc-400">Loading comments...</p>}
+      {!loading && error && <p className="text-xs text-red-300">{error}</p>}
+      {!loading && !error && comments.length === 0 && (
+        <p className="text-xs text-zinc-400">No comments yet.</p>
+      )}
+
+      {!loading &&
+        !error &&
+        comments.map((comment) => (
+          <CommentNode
+            key={comment.id}
+            node={comment}
+            depth={0}
+            postId={postId}
+            onRefresh={loadComments}
+          />
+        ))}
     </div>
   );
 }

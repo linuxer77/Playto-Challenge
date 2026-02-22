@@ -1,11 +1,13 @@
 import { X, Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
 import { LeftSidebar } from "./LeftSidebar";
 import { Feed } from "./Feed";
 import { LeaderboardCard, RightSidebar } from "./RightSidebar";
 
-export function Layout({ onSignOut }) {
+export function Layout() {
+  const { logout } = useAuth();
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const { postId } = useParams();
 
@@ -25,7 +27,7 @@ export function Layout({ onSignOut }) {
     <div className="min-h-screen bg-[#04070C] text-white">
       <div className="mx-auto grid min-h-screen max-w-[1320px] grid-cols-1 md:grid-cols-[88px_minmax(0,1fr)] xl:grid-cols-[88px_minmax(0,640px)_360px]">
         <div className="hidden md:block">
-          <LeftSidebar onSignOut={onSignOut} />
+          <LeftSidebar onSignOut={logout} />
         </div>
         <Feed postId={postId} />
         <div className="hidden xl:block">
