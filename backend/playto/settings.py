@@ -35,8 +35,14 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "random-ass-key")
 DEBUG = _env_bool("DJANGO_DEBUG", True)
 
 ALLOWED_HOSTS = [host for host in os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",") if host]
-if not ALLOWED_HOSTS and DEBUG:
-    ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+
+# Allow all hosts when explicitly requested, useful for quick deployments.
+if _env_bool("DJANGO_ALLOW_ALL_HOSTS", False):
+    ALLOWED_HOSTS = ["*"]
+elif not ALLOWED_HOSTS:
+    # Keep local defaults in debug; otherwise avoid DisallowedHost 400s
+    # when a platform hostname is not configured yet.
+    ALLOWED_HOSTS = ["127.0.0.1", "localhost"] if DEBUG else ["*"]
 
 TOKEN_SALT = os.getenv("PLAYTO_TOKEN_SALT", "random-ass-auth")
 TOKEN_MAX_AGE_SECONDS = int(os.getenv("PLAYTO_TOKEN_MAX_AGE_SECONDS", "604800"))
