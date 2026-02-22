@@ -1,21 +1,12 @@
 const rawApiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "").trim();
 
-if (import.meta.env.PROD && !rawApiBaseUrl) {
+if (!rawApiBaseUrl) {
   throw new Error(
-    "Missing VITE_API_BASE_URL. Set it in your deployment environment (for example, Vercel).",
+    "Missing VITE_API_BASE_URL. Set one backend URL in your env (local or deployed).",
   );
 }
 
-export const API_BASE_URL = (
-  import.meta.env.DEV ? rawApiBaseUrl || "" : rawApiBaseUrl
-).replace(/\/+$/, "");
-
-if (import.meta.env.DEV) {
-  // Helps verify where requests are going while debugging env issues.
-  console.info(
-    `[api] API_BASE_URL=${API_BASE_URL || "(empty -> Vite /api proxy is used)"}`,
-  );
-}
+export const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, "");
 
 export const API_PATHS = {
   users: {
