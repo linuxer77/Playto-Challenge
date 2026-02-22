@@ -6,10 +6,16 @@ if (import.meta.env.PROD && !rawApiBaseUrl) {
   );
 }
 
-export const API_BASE_URL = (rawApiBaseUrl || "http://localhost:8000").replace(
-  /\/+$/,
-  "",
-);
+export const API_BASE_URL = (
+  import.meta.env.DEV ? rawApiBaseUrl || "" : rawApiBaseUrl
+).replace(/\/+$/, "");
+
+if (import.meta.env.DEV) {
+  // Helps verify where requests are going while debugging env issues.
+  console.info(
+    `[api] API_BASE_URL=${API_BASE_URL || "(empty -> Vite /api proxy is used)"}`,
+  );
+}
 
 export const API_PATHS = {
   users: {
