@@ -41,13 +41,14 @@ class CorsMiddleware:
         if not origin or not self._is_origin_allowed(origin):
             return response
 
-        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Origin"] = origin
         response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         response["Access-Control-Allow-Headers"] = (
             request.headers.get("Access-Control-Request-Headers", "Authorization, Content-Type")
         )
         response["Access-Control-Allow-Credentials"] = "true"
         response["Access-Control-Max-Age"] = "86400"
+        response["Vary"] = "Origin"
         return response
 
     def _build_preflight_response(self, request):
