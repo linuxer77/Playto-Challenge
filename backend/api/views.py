@@ -3,6 +3,10 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from django.core import signing
 from django.conf import settings
+from django.db.models import Count, IntegerField, Value
+from django.utils import timezone
+from datetime import timedelta
+from django.db.models import F
 from core.models import User, Post, PostLike, Comment, CommentLike
 from .serializers import (
     UserSerializer,
@@ -149,7 +153,7 @@ def listPosts(request):
         return auth_error
 
     posts = Post.objects.all().order_by("-date")
-    serializer = PostSerializer(posts, many=True)
+    serializer = PostSerializer(posts, many=True, context={"auth_user": auth_user})
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -164,7 +168,7 @@ def getPost(request, post_id):
     except Post.DoesNotExist:
         return Response({"detail": "Post not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    serializer = PostSerializer(post)
+    serializer = PostSerializer(post, context={"auth_user": auth_user})
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -221,7 +225,10 @@ def createComment(request):
     serializer = CommentCreateSerializer(data=data)
     if serializer.is_valid():
         comment = serializer.save()
-        response_serializer = CommentReadSerializer(comment)
+        response_serializer = CommentReadSerializer(
+            comment,
+            context={"auth_user": auth_user},
+        )
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -236,7 +243,11 @@ def listPostComments(request, post_id):
     comments = Comment.objects.filter(post_id=post_id, parent__isnull=True).order_by(
         "-created"
     )
-    serializer = CommentReadSerializer(comments, many=True)
+    serializer = CommentReadSerializer(
+        comments,
+        many=True,
+        context={"auth_user": auth_user},
+    )
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -279,3 +290,71 @@ def deleteCommentLike(request, like_id):
 
     like.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(["GET"])
+def getKarmaLeaderboard24h(request):
+    auth_user, auth_error = _authenticate_request(request)
+    if auth_error:
+        return auth_error
+
+    window_start = timezone.now() - timedelta(hours=24)
+
+    post_karma_rows = (
+        PostLike.objects.filter(created__gte=window_start)
+        .exclude(user_id=F("post__author_id"))
+        .values("post__author_id", "post__author__username")
+        .annotate(
+            karma=Count("id")
+            * Value(
+                5,
+                output_field=IntegerField(),
+            )
+        )
+    )
+
+    comment_karma_rows = (
+        CommentLike.objects.filter(created__gte=window_start)
+        .exclude(user_id=F("comment__author_id"))
+        .values("comment__author_id", "comment__author__username")
+        .annotate(
+            karma=Count("id")
+            * Value(
+                1,
+                output_field=IntegerField(),
+            )
+        )
+    )
+
+    leaderboard_totals = {}
+
+    for row in post_karma_rows:
+        user_id = row["post__author_id"]
+        leaderboard_totals[user_id] = {
+            "user_id": user_id,
+            "username": row["post__author__username"],
+            "karma": row["karma"],
+        }
+
+    for row in comment_karma_rows:
+        user_id = row["comment__author_id"]
+        if user_id not in leaderboard_totals:
+            leaderboard_totals[user_id] = {
+                "user_id": user_id,
+                "username": row["comment__author__username"],
+                "karma": 0,
+            }
+        leaderboard_totals[user_id]["karma"] += row["karma"]
+
+    top_users = sorted(
+        leaderboard_totals.values(),
+        key=lambda user_entry: (-user_entry["karma"], user_entry["username"]),
+    )[:5]
+
+    return Response(
+        {
+            "window_hours": 24,
+            "top_users": top_users,
+        },
+        status=status.HTTP_200_OK,
+    )
