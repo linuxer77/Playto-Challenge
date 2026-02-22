@@ -1,21 +1,35 @@
 import { cva } from "class-variance-authority";
-import { MessageCircle, Heart } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "../lib/utils";
 import { commentsApi, likesApi } from "../api";
 
 const nodeClass = cva("relative");
 const actionButtonClass = cva(
-  "group inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs text-[#71767B] transition-colors hover:bg-white/10 hover:text-white",
+  "terminal-btn terminal-action inline-flex items-center gap-1.5 border border-[var(--tokyo-muted)] px-2.5 py-1 text-xs font-medium text-[var(--tokyo-prompt)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--tokyo-prompt)]",
 );
 
-function CommentNode({ node, depth, postId, onRefresh }) {
-  const [liked, setLiked] = useState(false);
-  const [likeId, setLikeId] = useState(null);
+function CommentNode({
+  node,
+  depth,
+  isLast,
+  postId,
+  onRefresh,
+  onThreadLikeDelta,
+}) {
+  const [isCommentLikedByViewer, setIsCommentLikedByViewer] = useState(
+    Boolean(node.is_liked_by_viewer),
+  );
+  const [viewerCommentLikeId, setViewerCommentLikeId] = useState(
+    node.viewer_comment_like_id || null,
+  );
+  const [commentLikeCount, setCommentLikeCount] = useState(
+    node.comment_like_count || 0,
+  );
   const [open, setOpen] = useState(true);
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [error, setError] = useState("");
+  const [likeLoading, setLikeLoading] = useState(false);
   const hasChildren = node.replies.length > 0;
   const childCount = node.replies.length;
 
@@ -41,118 +55,163 @@ function CommentNode({ node, depth, postId, onRefresh }) {
 
   const toggleLike = async () => {
     setError("");
+    setLikeLoading(true);
     try {
-      if (liked && likeId) {
-        await likesApi.deleteCommentLike(likeId);
-        setLiked(false);
-        setLikeId(null);
+      if (isCommentLikedByViewer && viewerCommentLikeId) {
+        await likesApi.deleteCommentLike(viewerCommentLikeId);
+        setIsCommentLikedByViewer(false);
+        setViewerCommentLikeId(null);
+        setCommentLikeCount((currentLikeCount) =>
+          Math.max(0, currentLikeCount - 1),
+        );
+        onThreadLikeDelta?.(-1);
       } else {
         const payload = await likesApi.createCommentLike(node.id);
-        setLiked(true);
-        setLikeId(payload.id);
+        setIsCommentLikedByViewer(true);
+        setViewerCommentLikeId(payload.id);
+        setCommentLikeCount((currentLikeCount) => currentLikeCount + 1);
+        onThreadLikeDelta?.(1);
       }
     } catch (err) {
       setError(err.message || "Unable to update comment like.");
+    } finally {
+      setLikeLoading(false);
     }
   };
 
   return (
-    <div className={cn(nodeClass(), depth > 0 && "pl-4")}>
-      <div className={cn(depth > 0 && "border-l border-[#2F3336] pl-3")}>
-        <div className="flex gap-2.5">
-          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-[10px] font-semibold text-white">
-            {node.author.slice(0, 2).toUpperCase()}
+    <div
+      className={cn(
+        nodeClass(),
+        depth > 0 && "tree-node tree-child",
+        depth > 0 && isLast && "tree-last",
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="border border-[var(--tokyo-muted)] bg-[var(--tokyo-surface)] px-3 py-2">
+          <div className="flex flex-wrap items-center gap-x-2 text-xs leading-5 text-[var(--tokyo-muted)]">
+            <span className="text-[var(--tokyo-muted)]">
+              {depth === 0 ? "+--" : "|__"}{" "}
+              <span className="text-[var(--tokyo-muted)]">@</span>
+              <span className="terminal-token-key">{node.author}</span>
+            </span>
+            <span>|</span>
+            <span>{new Date(node.created).toLocaleString()}</span>
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-1 text-sm leading-5">
-              <span className="font-bold text-white">@{node.author}</span>
-              <span className="text-[#71767B]">·</span>
-              <span className="text-[#71767B]">
-                {new Date(node.created).toLocaleString()}
-              </span>
-            </div>
-            <p className="text-sm font-medium text-white">{node.content}</p>
-            <div className="mt-1.5 flex items-center gap-1">
+          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--tokyo-text)]">
+            {node.content}
+          </p>
+
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              className={actionButtonClass()}
+              onClick={(event) => {
+                event.stopPropagation();
+                setReplyOpen((value) => !value);
+              }}
+            >
+              <span className="terminal-token-command">&gt;</span>{" "}
+              <span className="terminal-token-flag">reply</span>
+            </button>
+            <button
+              type="button"
+              className={cn(
+                actionButtonClass(),
+                isCommentLikedByViewer
+                  ? "border-[var(--tokyo-alert)] bg-[var(--tokyo-surface)] text-[var(--tokyo-alert)]"
+                  : "border-[var(--tokyo-muted)] text-[var(--tokyo-text)]",
+              )}
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleLike();
+              }}
+              aria-pressed={isCommentLikedByViewer}
+              disabled={likeLoading}
+            >
+              {isCommentLikedByViewer
+                ? `[*LIKE: ${commentLikeCount}]`
+                : `[LIKE: ${commentLikeCount}]`}
+            </button>
+            {hasChildren && (
               <button
                 type="button"
                 className={actionButtonClass()}
                 onClick={(event) => {
                   event.stopPropagation();
-                  setReplyOpen((value) => !value);
+                  setOpen((value) => !value);
                 }}
               >
-                <MessageCircle size={14} />
-                <span>Reply</span>
-              </button>
-              <button
-                type="button"
-                className={cn(
-                  actionButtonClass(),
-                  liked && "text-[#F91880] hover:text-[#F91880]",
+                {open ? (
+                  <>
+                    <span className="terminal-token-command">&gt;</span>{" "}
+                    <span className="terminal-token-flag">
+                      collapse_replies
+                    </span>
+                    <span className="terminal-token-meta">()</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="terminal-token-command">&gt;</span>{" "}
+                    <span className="terminal-token-flag">show_</span>
+                    <span className="terminal-token-number">{childCount}</span>
+                    <span className="terminal-token-flag">
+                      _repl{childCount === 1 ? "y" : "ies"}
+                    </span>
+                    <span className="terminal-token-meta">()</span>
+                  </>
                 )}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  toggleLike();
-                }}
-                aria-pressed={liked}
-              >
-                <Heart size={14} fill={liked ? "#F91880" : "transparent"} />
-                <span>{liked ? "Liked" : "Like"}</span>
               </button>
-              {hasChildren && (
+            )}
+          </div>
+
+          {replyOpen && (
+            <div className="mt-2 border border-[var(--tokyo-muted)] bg-[var(--tokyo-void)] p-2">
+              <p className="terminal-prompt mb-1 text-xs text-[var(--tokyo-muted)]">
+                <span className="terminal-token-flag">reply_to_comment</span>
+                <span className="terminal-token-meta">(</span>
+                <span className="terminal-token-number">{node.id}</span>
+                <span className="terminal-token-meta">):</span>
+              </p>
+              <textarea
+                value={replyText}
+                onChange={(event) => setReplyText(event.target.value)}
+                className="terminal-textarea min-h-[66px] w-full resize-none px-2 py-2 text-xs outline-none"
+                placeholder="type reply..."
+              />
+              <div className="mt-2 flex flex-wrap justify-end gap-2">
                 <button
                   type="button"
-                  className={actionButtonClass()}
+                  className="terminal-btn terminal-action px-2.5 py-1 text-[11px] text-[var(--tokyo-text)]"
                   onClick={(event) => {
                     event.stopPropagation();
-                    setOpen((value) => !value);
+                    setReplyOpen(false);
+                    setReplyText("");
                   }}
                 >
-                  <span>
-                    {open
-                      ? "Hide replies"
-                      : `Show ${childCount} repl${childCount === 1 ? "y" : "ies"}`}
-                  </span>
+                  <span className="terminal-token-command">&gt;</span>{" "}
+                  <span className="terminal-token-key">cancel</span>
                 </button>
-              )}
-            </div>
-
-            {replyOpen && (
-              <div className="mt-2 rounded-xl border border-[#2F3336] p-2.5">
-                <textarea
-                  value={replyText}
-                  onChange={(event) => setReplyText(event.target.value)}
-                  className="min-h-[66px] w-full resize-none bg-transparent text-xs text-white outline-none placeholder:text-[#71767B]"
-                  placeholder="Post your reply"
-                />
-                <div className="mt-2 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-[#71767B] transition-colors hover:bg-white/10 hover:text-white"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setReplyOpen(false);
-                      setReplyText("");
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-full bg-[#1D9BF0] px-2.5 py-1 text-[11px] font-bold text-white disabled:opacity-50"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      submitReply();
-                    }}
-                    disabled={!replyText.trim()}
-                  >
-                    Reply
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className="terminal-btn terminal-action px-2.5 py-1 text-[11px] text-[var(--tokyo-prompt)] disabled:opacity-50"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    submitReply();
+                  }}
+                  disabled={!replyText.trim()}
+                >
+                  <span className="terminal-token-command">&gt;</span>{" "}
+                  <span className="terminal-token-flag">send_reply</span>
+                </button>
               </div>
-            )}
-            {error && <p className="mt-1 text-xs text-red-300">{error}</p>}
-          </div>
+            </div>
+          )}
+          {error && (
+            <p className="mt-1 text-xs text-[var(--tokyo-alert)]">
+              error: {error}
+            </p>
+          )}
         </div>
       </div>
 
@@ -166,13 +225,15 @@ function CommentNode({ node, depth, postId, onRefresh }) {
           )}
         >
           <div className="min-h-0 space-y-2">
-            {node.replies.map((child) => (
+            {node.replies.map((child, index) => (
               <CommentNode
                 key={child.id}
                 node={child}
                 depth={depth + 1}
+                isLast={index === node.replies.length - 1}
                 postId={postId}
                 onRefresh={onRefresh}
+                onThreadLikeDelta={onThreadLikeDelta}
               />
             ))}
           </div>
@@ -182,7 +243,7 @@ function CommentNode({ node, depth, postId, onRefresh }) {
   );
 }
 
-export function CommentThread({ postId }) {
+export function CommentThread({ postId, onThreadLikeDelta }) {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
   const [loading, setLoading] = useState(true);
@@ -223,41 +284,61 @@ export function CommentThread({ postId }) {
   };
 
   return (
-    <div className="mt-3 space-y-3">
-      <div className="rounded-2xl border border-[#2F3336] p-3">
+    <div className="mt-4 space-y-3">
+      <div className="border border-[var(--tokyo-muted)] bg-[var(--tokyo-void)] p-3">
+        <p className="terminal-prompt mb-1 text-xs text-[var(--tokyo-muted)]">
+          <span className="terminal-token-flag">reply_to_post</span>
+          <span className="terminal-token-meta">(</span>
+          <span className="terminal-token-number">{postId}</span>
+          <span className="terminal-token-meta">):</span>
+        </p>
         <textarea
           value={newComment}
           onChange={(event) => setNewComment(event.target.value)}
-          className="min-h-[76px] w-full resize-none bg-transparent text-sm text-white outline-none placeholder:text-[#71767B]"
-          placeholder="Write a comment"
+          className="terminal-textarea min-h-[76px] w-full resize-none px-2 py-2 text-sm outline-none"
+          placeholder="type comment..."
         />
         <div className="mt-2 flex justify-end">
           <button
             type="button"
-            className="rounded-full bg-[#1D9BF0] px-3 py-1 text-xs font-bold text-white disabled:opacity-50"
+            className="terminal-btn terminal-action px-3 py-1 text-xs font-semibold text-[var(--tokyo-prompt)] disabled:opacity-50"
             onClick={submitRootComment}
             disabled={!newComment.trim() || submitting}
           >
-            {submitting ? "Posting..." : "Comment"}
+            {submitting ? (
+              "posting..."
+            ) : (
+              <>
+                <span className="terminal-token-command">&gt;</span>{" "}
+                <span className="terminal-token-flag">comment</span>
+                <span className="terminal-token-meta">()</span>
+              </>
+            )}
           </button>
         </div>
       </div>
 
-      {loading && <p className="text-xs text-zinc-400">Loading comments...</p>}
-      {!loading && error && <p className="text-xs text-red-300">{error}</p>}
+      {loading && (
+        <p className="text-xs text-[var(--tokyo-muted)]">loading comments...</p>
+      )}
+      {!loading && error && (
+        <p className="text-xs text-[var(--tokyo-alert)]">error: {error}</p>
+      )}
       {!loading && !error && comments.length === 0 && (
-        <p className="text-xs text-zinc-400">No comments yet.</p>
+        <p className="text-xs text-[var(--tokyo-muted)]">no comments yet</p>
       )}
 
       {!loading &&
         !error &&
-        comments.map((comment) => (
+        comments.map((comment, index) => (
           <CommentNode
             key={comment.id}
             node={comment}
             depth={0}
+            isLast={index === comments.length - 1}
             postId={postId}
             onRefresh={loadComments}
+            onThreadLikeDelta={onThreadLikeDelta}
           />
         ))}
     </div>

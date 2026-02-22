@@ -13,6 +13,7 @@
   "dependencies": {
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.34.3",
     "lucide-react": "^0.542.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -20,10 +21,10 @@
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^5.0.2",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
+    "@vitejs/plugin-react": "^5.0.2",
     "autoprefixer": "^10.4.21",
     "jsdom": "^26.1.0",
     "msw": "^2.11.2",

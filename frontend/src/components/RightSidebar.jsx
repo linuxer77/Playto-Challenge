@@ -1,64 +1,93 @@
 import { cva } from "class-variance-authority";
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "../lib/utils";
-import { feedPosts } from "./feedData";
+import { usersApi } from "../api";
 
 const railClass = cva(
-  "sticky top-0 h-screen border-l border-white/10 bg-[#060B13]/40 px-6 py-4",
+  "sticky top-0 h-full min-h-[calc(100vh-4.2rem)] border-l border-[var(--tokyo-muted)] bg-[var(--tokyo-void)] px-5 py-4",
 );
 const cardClass = cva(
-  "mt-3 rounded-2xl border border-white/10 bg-[#111827]/65 p-4 shadow-lg shadow-black/20 backdrop-blur",
+  "mt-3 border border-[var(--tokyo-muted)] bg-[var(--tokyo-surface)] p-4",
 );
 
-function buildLeaderboard(posts) {
-  const totals = new Map();
-
-  for (const post of posts) {
-    totals.set(post.author.handle, (totals.get(post.author.handle) || 0) + 5);
-
-    const stack = [...post.comments];
-    while (stack.length > 0) {
-      const current = stack.pop();
-      totals.set(
-        current.author.handle,
-        (totals.get(current.author.handle) || 0) + 1,
-      );
-      stack.push(...current.children);
-    }
-  }
-
-  return [...totals.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([handle, score]) => ({ handle, score }));
-}
-
 export function LeaderboardCard({ className }) {
-  const leaderboard = useMemo(() => buildLeaderboard(feedPosts), []);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadLeaderboard = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const payload = await usersApi.getKarmaLeaderboard24h();
+        if (!isMounted) {
+          return;
+        }
+        setLeaderboard(payload?.top_users || []);
+      } catch (err) {
+        if (!isMounted) {
+          return;
+        }
+        setError(err.message || "Failed to load leaderboard.");
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadLeaderboard();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <div className={cn(cardClass(), className)}>
-      <h2 className="text-xl font-extrabold text-white">Top Karma • 24h</h2>
-      <ul className="mt-4 space-y-3">
-        {leaderboard.map((entry, index) => (
-          <li
-            key={entry.handle}
-            className="flex items-center justify-between rounded-xl px-2 py-1.5 transition-colors hover:bg-white/5"
-          >
-            <div className="flex items-center gap-3">
-              <span className="w-5 text-sm font-semibold text-[#71767B]">
-                {index + 1}
+      <h2 className="text-sm font-bold tracking-[0.08em] text-[var(--tokyo-prompt)]">
+        +-- TOP_KARMA_24H
+      </h2>
+
+      {loading && (
+        <p className="mt-4 text-sm text-[var(--tokyo-muted)]">loading...</p>
+      )}
+
+      {!loading && error && (
+        <p className="mt-4 text-sm text-[var(--tokyo-alert)]">{error}</p>
+      )}
+
+      {!loading && !error && leaderboard.length === 0 && (
+        <p className="mt-4 text-sm text-[var(--tokyo-muted)]">
+          no activity in the last 24h
+        </p>
+      )}
+
+      {!loading && !error && leaderboard.length > 0 && (
+        <ul className="mt-4 space-y-1.5">
+          {leaderboard.map((entry, index) => (
+            <li
+              key={entry.user_id}
+              className="terminal-action flex items-center justify-between border border-transparent px-2 py-1"
+            >
+              <div className="flex items-center gap-3">
+                <span className="w-5 text-sm font-semibold text-[var(--tokyo-muted)]">
+                  {index + 1}
+                </span>
+                <span className="text-sm font-semibold text-[var(--tokyo-text)]">
+                  @{entry.username}
+                </span>
+              </div>
+              <span className="text-sm font-semibold text-[var(--tokyo-alert)]">
+                {entry.karma}
               </span>
-              <span className="text-[15px] font-semibold text-white">
-                @{entry.handle}
-              </span>
-            </div>
-            <span className="text-sm font-semibold text-[#1D9BF0]">
-              {entry.score}
-            </span>
-          </li>
-        ))}
-      </ul>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

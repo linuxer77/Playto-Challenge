@@ -24,24 +24,37 @@ export function Layout() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#04070C] text-white">
-      <div className="mx-auto grid min-h-screen max-w-[1320px] grid-cols-1 md:grid-cols-[88px_minmax(0,1fr)] xl:grid-cols-[88px_minmax(0,640px)_360px]">
-        <div className="hidden md:block">
-          <LeftSidebar onSignOut={logout} />
+    <div className="min-h-screen bg-[var(--tokyo-void)] px-3 py-3 text-[var(--tokyo-text)] sm:px-4">
+      <div className="terminal-shell mx-auto min-h-[calc(100vh-1.5rem)] max-w-[1320px]">
+        <div className="terminal-chrome flex items-center justify-between px-4 py-2 text-xs">
+          <span className="tracking-[0.12em]">
+            <span className="terminal-token-command">PLAYTO</span>
+            <span className="terminal-token-meta">://</span>
+            <span className="terminal-token-key">SESSION</span>
+          </span>
+          <span className="text-[var(--tokyo-muted)]">
+            STATUS: <span className="terminal-token-flag">ONLINE</span>
+          </span>
         </div>
-        <Feed postId={postId} />
-        <div className="hidden xl:block">
-          <RightSidebar />
+        <div className="grid min-h-[calc(100vh-4.2rem)] grid-cols-1 md:grid-cols-[84px_minmax(0,1fr)] xl:grid-cols-[84px_minmax(0,640px)_360px]">
+          <div className="hidden md:block">
+            <LeftSidebar onSignOut={logout} />
+          </div>
+          <Feed postId={postId} />
+          <div className="hidden xl:block">
+            <RightSidebar />
+          </div>
         </div>
       </div>
 
       <button
         type="button"
-        className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/90 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-black/40 backdrop-blur transition-all hover:bg-white hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 xl:hidden"
+        className="terminal-btn terminal-action fixed bottom-5 right-5 z-30 inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-[var(--tokyo-prompt)] xl:hidden"
         onClick={() => setLeaderboardOpen(true)}
       >
         <Trophy size={16} />
-        Leaderboard
+        <span className="terminal-token-command">&gt;</span>{" "}
+        <span className="terminal-token-flag">top_users</span>
       </button>
 
       <div
@@ -56,7 +69,7 @@ export function Layout() {
       >
         <aside
           className={[
-            "absolute bottom-0 right-0 h-[min(82vh,640px)] w-full max-w-md rounded-t-2xl border border-white/10 bg-[#0A0A0A] p-4 shadow-2xl shadow-black/60 transition-transform duration-300 sm:rounded-l-2xl sm:rounded-tr-none",
+            "terminal-shell absolute bottom-0 right-0 h-[min(82vh,640px)] w-full max-w-md p-4 transition-transform duration-300",
             leaderboardOpen ? "translate-y-0" : "translate-y-full",
           ].join(" ")}
           onClick={(event) => event.stopPropagation()}
@@ -65,10 +78,14 @@ export function Layout() {
           aria-label="Leaderboard"
         >
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-base font-bold text-white">Leaderboard</h2>
+            <h2 className="text-base font-bold text-[var(--tokyo-text)]">
+              <span className="terminal-token-command">&gt;</span>{" "}
+              <span className="terminal-token-flag">top_users</span>{" "}
+              <span className="terminal-token-meta">--24h</span>
+            </h2>
             <button
               type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+              className="terminal-action inline-flex h-9 w-9 items-center justify-center border border-[var(--tokyo-muted)] text-[var(--tokyo-muted)]"
               onClick={() => setLeaderboardOpen(false)}
               aria-label="Close leaderboard"
             >

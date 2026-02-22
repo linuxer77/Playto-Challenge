@@ -13,4 +13,8 @@ export const usersApi = {
   list() {
     return apiRequest(API_PATHS.users.list, { method: "GET" });
   },
+
+  getKarmaLeaderboard24h() {
+    return apiRequest(API_PATHS.users.karmaLeaderboard24h, { method: "GET" });
+  },
 };

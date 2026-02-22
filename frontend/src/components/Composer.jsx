@@ -1,12 +1,8 @@
 import { cva } from "class-variance-authority";
-import { Image, SmilePlus, CalendarDays, MapPin } from "lucide-react";
 import { useState } from "react";
 import { postsApi } from "../api";
 
-const wrapperClass = cva("border-b border-[#2F3336] px-4 pb-3 pt-4");
-const iconButtonClass = cva(
-  "flex h-8 w-8 items-center justify-center rounded-full text-[#1D9BF0] transition-colors hover:bg-white/10",
-);
+const wrapperClass = cva("border-b border-[var(--tokyo-muted)] px-4 pb-3 pt-4");
 
 export function Composer({ onPostCreated }) {
   const [title, setTitle] = useState("");
@@ -40,61 +36,55 @@ export function Composer({ onPostCreated }) {
   return (
     <section className={wrapperClass()}>
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-700 text-xs font-semibold text-white">
+        <div className="flex h-10 w-10 items-center justify-center border border-[var(--tokyo-muted)] bg-[var(--tokyo-surface)] text-xs font-semibold text-[var(--tokyo-prompt)]">
           YOU
         </div>
         <div className="min-w-0 flex-1">
+          <p className="terminal-prompt mb-1 text-xs text-[var(--tokyo-muted)]">
+            <span className="terminal-token-meta">post_</span>
+            <span className="terminal-token-key">title</span>
+          </p>
           <input
-            className="w-full rounded-lg border border-white/10 bg-transparent px-3 py-2 text-sm text-white"
+            className="terminal-input w-full px-3 py-2 text-sm"
             placeholder="Post title"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
           />
+          <p className="terminal-prompt mb-1 mt-2 text-xs text-[var(--tokyo-muted)]">
+            <span className="terminal-token-meta">post_</span>
+            <span className="terminal-token-key">body</span>
+          </p>
           <textarea
-            className="mt-2 min-h-[90px] w-full rounded-lg border border-white/10 bg-transparent px-3 py-2 text-sm text-white"
+            className="terminal-textarea min-h-[90px] w-full px-3 py-2 text-sm"
             placeholder="What's happening?"
             value={content}
             onChange={(event) => setContent(event.target.value)}
           />
-          {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
+          {error && (
+            <p className="mt-2 text-xs text-[var(--tokyo-alert)]">
+              error: {error}
+            </p>
+          )}
           <div className="mt-4 flex items-center justify-between">
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                className={iconButtonClass()}
-                aria-label="Add image"
-              >
-                <Image size={18} />
-              </button>
-              <button
-                type="button"
-                className={iconButtonClass()}
-                aria-label="Add emoji"
-              >
-                <SmilePlus size={18} />
-              </button>
-              <button
-                type="button"
-                className={iconButtonClass()}
-                aria-label="Schedule post"
-              >
-                <CalendarDays size={18} />
-              </button>
-              <button
-                type="button"
-                className={iconButtonClass()}
-                aria-label="Add location"
-              >
-                <MapPin size={18} />
-              </button>
-            </div>
+            <span className="terminal-prompt text-xs text-[var(--tokyo-muted)]">
+              <span className="terminal-token-meta">ready_to_</span>
+              <span className="terminal-token-flag">submit</span>
+            </span>
             <button
               type="button"
-              className="rounded-full bg-[#1D9BF0] px-5 py-2 text-sm font-bold text-white transition-all hover:brightness-110 disabled:opacity-60"
+              className="terminal-btn terminal-action px-4 py-2 text-sm font-bold text-[var(--tokyo-prompt)] disabled:opacity-60"
               onClick={submitPost}
               disabled={loading}
             >
-              {loading ? "Posting..." : "Post"}
+              {loading ? (
+                "posting..."
+              ) : (
+                <>
+                  <span className="terminal-token-command">&gt;</span>{" "}
+                  <span className="terminal-token-flag">submit_post</span>
+                  <span className="terminal-token-meta">()</span>
+                </>
+              )}
             </button>
           </div>
         </div>

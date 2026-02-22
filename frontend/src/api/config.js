@@ -9,6 +9,7 @@ export const API_PATHS = {
     create: "/api/users/create",
     list: "/api/users",
     login: "/api/users/login",
+    karmaLeaderboard24h: "/api/users/leaderboard/karma-24h",
   },
   posts: {
     create: "/api/posts/create",

@@ -6,15 +6,15 @@ import { PostCard } from "./PostCard";
 import { Composer } from "./Composer";
 
 const containerClass = cva(
-  "h-screen overflow-y-auto border-x border-white/10 bg-[#050A12]/40",
+  "h-full min-h-[calc(100vh-4.2rem)] overflow-y-auto border-x border-[var(--tokyo-muted)] bg-[var(--tokyo-void)]",
 );
 const tabButtonClass = cva(
-  "relative flex-1 py-4 text-[15px] font-semibold transition-colors hover:bg-white/5",
+  "terminal-action relative flex-1 border-b border-[var(--tokyo-muted)] px-5 py-3 text-left text-sm font-semibold tracking-[0.08em]",
   {
     variants: {
       active: {
-        true: "text-white",
-        false: "text-[#71767B]",
+        true: "text-[var(--tokyo-prompt)]",
+        false: "text-[var(--tokyo-muted)]",
       },
     },
     defaultVariants: {
@@ -55,19 +55,21 @@ export function Feed({ postId }) {
 
   return (
     <main className={containerClass()}>
-      <div className="sticky top-0 z-10 border-b border-white/10 bg-[#050A12]/90 backdrop-blur-xl">
+      <div className="terminal-chrome sticky top-0 z-10 border-b border-[var(--tokyo-muted)] bg-[var(--tokyo-void)]">
         {isDetailView ? (
-          <div className="flex items-center gap-3 px-4 py-3">
+          <div className="flex items-center gap-3 px-5 py-3">
             <button
               type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10"
+              className="terminal-btn terminal-action inline-flex h-8 w-8 items-center justify-center text-[var(--tokyo-prompt)]"
               onClick={() => navigate("/home")}
               aria-label="Back to feed"
             >
               ←
             </button>
             <div>
-              <p className="text-xl font-bold text-white">Post</p>
+              <p className="terminal-prompt text-sm font-semibold tracking-[0.08em] text-[var(--tokyo-prompt)]">
+                <span className="terminal-token-flag">read_post</span>
+              </p>
             </div>
           </div>
         ) : (
@@ -77,7 +79,13 @@ export function Feed({ postId }) {
                 type="button"
                 className={tabButtonClass({ active: true })}
               >
-                Feed
+                <span className="terminal-token-key">root</span>
+                <span className="text-[var(--tokyo-muted)]">@</span>
+                <span className="terminal-token-meta">feed</span>
+                <span className="text-[var(--tokyo-muted)]">:~$ </span>
+                <span className="terminal-token-flag">ls</span>
+                <span className="text-[var(--tokyo-muted)]"> </span>
+                <span className="terminal-token-meta">posts</span>
               </button>
             </div>
             <Composer onPostCreated={loadData} />
@@ -85,20 +93,22 @@ export function Feed({ postId }) {
         )}
       </div>
 
-      <div>
+      <div className="px-2 pb-16 pt-2">
         {loading && (
-          <p className="px-4 py-6 text-sm text-zinc-300">Loading...</p>
+          <p className="px-4 py-8 text-sm text-[var(--tokyo-muted)]">
+            loading...
+          </p>
         )}
 
         {!loading && error && (
-          <div className="px-4 py-6">
-            <p className="text-sm text-red-300">{error}</p>
+          <div className="px-4 py-8">
+            <p className="text-sm text-[var(--tokyo-alert)]">error: {error}</p>
             <button
               type="button"
               onClick={loadData}
-              className="mt-3 rounded-full border border-white/20 px-3 py-1.5 text-sm"
+              className="terminal-btn terminal-action mt-3 px-3 py-1 text-sm"
             >
-              Retry
+              {"> retry()"}
             </button>
           </div>
         )}
@@ -108,7 +118,9 @@ export function Feed({ postId }) {
         )}
 
         {!loading && !error && !isDetailView && posts.length === 0 && (
-          <p className="px-4 py-6 text-sm text-zinc-400">No posts yet.</p>
+          <p className="px-4 py-8 text-sm text-[var(--tokyo-muted)]">
+            no posts found
+          </p>
         )}
 
         {!loading &&
