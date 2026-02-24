@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from core.models import User, Post, PostLike, Comment, CommentLike
-
+from django.db.models import Count
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
@@ -21,8 +21,8 @@ class UserSerializer(serializers.ModelSerializer):
 class PostSerializer(serializers.ModelSerializer):
     author_username = serializers.SlugRelatedField(read_only=True, slug_field="username", source="author")
     post_like_count = serializers.SerializerMethodField()
-    thread_like_count = serializers.SerializerMethodField()
-    total_like_count = serializers.SerializerMethodField()
+    # thread_like_count = serializers.SerializerMethodField()
+    # total_like_count = serializers.SerializerMethodField()
     viewer_post_like_id = serializers.SerializerMethodField()
     is_liked_by_viewer = serializers.SerializerMethodField()
 
@@ -36,8 +36,8 @@ class PostSerializer(serializers.ModelSerializer):
             "content",
             "date",
             "post_like_count",
-            "thread_like_count",
-            "total_like_count",
+            # "thread_like_count",
+            # "total_like_count",
             "viewer_post_like_id",
             "is_liked_by_viewer",
         ]
@@ -45,12 +45,9 @@ class PostSerializer(serializers.ModelSerializer):
 
     def get_post_like_count(self, obj):
         return obj.postlike_set.count()
-
-    def get_thread_like_count(self, obj):
-        return CommentLike.objects.filter(comment__post=obj).count()
-
-    def get_total_like_count(self, obj):
-        return self.get_post_like_count(obj) + self.get_thread_like_count(obj)
+    
+    # def get_total_like_count(self, obj):
+    #     return self.get_post_like_count(obj) + self.get_thread_like_count(obj)
 
     def get_viewer_post_like_id(self, obj):
         auth_user = self.context.get("auth_user")

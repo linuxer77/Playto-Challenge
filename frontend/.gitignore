@@ -29,3 +29,4 @@ pnpm-debug.log*
 *.sw?
 
 RUN_AGAINST_BACKEND.md
+FRONTEND_ARCHITECTURE.md
